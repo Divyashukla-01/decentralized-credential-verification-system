@@ -7,11 +7,12 @@ import java.security.NoSuchAlgorithmException;
 public class HashUtil {
 
     /**
-     * Generates SHA-256 hash from: studentName + course + issueDate + certId
-     * This is the tamper-proof fingerprint of the certificate.
+     * Generates SHA-256 hash from: studentName + rollNo + course + issueDate + certId
      */
-    public static String generateHash(String studentName, String course, String issueDate, String certId) {
-        String raw = studentName.trim() + course.trim() + issueDate.trim() + certId.trim();
+    public static String generateHash(String studentName, String rollNo,
+                                       String course, String issueDate, String certId) {
+        String raw = studentName.trim() + rollNo.trim() + course.trim()
+                   + issueDate.trim() + certId.trim();
         return sha256(raw);
     }
 
@@ -20,9 +21,7 @@ public class HashUtil {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             StringBuilder hex = new StringBuilder();
-            for (byte b : hashBytes) {
-                hex.append(String.format("%02x", b));
-            }
+            for (byte b : hashBytes) hex.append(String.format("%02x", b));
             return hex.toString();
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);

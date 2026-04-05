@@ -1,19 +1,14 @@
 package com.dcvs.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class VerificationResult {
     private boolean valid;
-    private String status;           // "VALID" | "INVALID" | "NOT_FOUND"
+    private String status;        // VALID | INVALID | NOT_FOUND
     private String message;
     private String certId;
+    private String rollNo;
     private String studentName;
     private String course;
     private String issueDate;

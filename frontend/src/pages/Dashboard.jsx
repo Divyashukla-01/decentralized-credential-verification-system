@@ -1,165 +1,139 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ShieldCheck, PlusCircle, Search, Activity, CheckCircle, XCircle, ArrowRight, Zap } from 'lucide-react'
-import { getAllCertificates, healthCheck, isDemoMode } from '../api.js'
-
-function StatCard({ label, value, sub, color = '#14b8a6' }) {
-  return (
-    <div className="card flex flex-col gap-2">
-      <p className="label">{label}</p>
-      <p className="font-display text-3xl font-bold" style={{ color }}>{value}</p>
-      {sub && <p className="text-xs" style={{ color: '#71717a' }}>{sub}</p>}
-    </div>
-  )
-}
-
-function QuickAction({ to, icon: Icon, title, desc }) {
-  return (
-    <Link to={to} className="card group transition-all duration-200 flex items-start gap-4"
-      style={{ border: '1px solid #27272a' }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = '#115e59'}
-      onMouseLeave={e => e.currentTarget.style.borderColor = '#27272a'}>
-      <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-        style={{ background: 'rgba(4,47,46,0.4)', border: '1px solid #115e59' }}>
-        <Icon size={18} style={{ color: '#14b8a6' }} />
-      </div>
-      <div className="flex-1">
-        <p className="font-display text-sm font-bold mb-1" style={{ color: '#fafafa' }}>{title}</p>
-        <p className="text-xs" style={{ color: '#71717a' }}>{desc}</p>
-      </div>
-      <ArrowRight size={14} style={{ color: '#71717a' }} className="mt-1 group-hover:text-teal-400 transition-colors" />
-    </Link>
-  )
-}
+import { ShieldCheck, PlusCircle, Activity, ArrowRight, TrendingUp, Clock, Database } from 'lucide-react'
+import { getAllCertificates, healthCheck } from '../api.js'
+import { useAuth } from '../AuthContext.jsx'
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ total: '—' })
+  const { getCachedCerts } = useAuth()
+  const [stats, setStats]             = useState({ total: '—', recent: 0 })
   const [backendStatus, setBackendStatus] = useState('checking')
   const [recentCerts, setRecentCerts] = useState([])
-  const demo = isDemoMode()
+  const [cachedCount, setCachedCount] = useState(0)
 
   useEffect(() => {
+    setCachedCount(getCachedCerts().length)
+
     healthCheck()
       .then(() => setBackendStatus('online'))
-      .catch(() => setBackendStatus(demo ? 'demo' : 'offline'))
+      .catch(() => setBackendStatus('offline'))
 
     getAllCertificates()
       .then(res => {
         const certs = res.data?.data || []
-        setStats({ total: certs.length })
-        setRecentCerts(certs.slice(-3).reverse())
+        const last7 = certs.filter(c => {
+          const d = new Date(c.timestamp || c.issueDate)
+          return (Date.now() - d.getTime()) < 7 * 24 * 60 * 60 * 1000
+        }).length
+        setStats({ total: certs.length, recent: last7 })
+        setRecentCerts(certs.slice(-4).reverse())
       })
       .catch(() => {})
   }, [])
 
-  const statusColor = backendStatus === 'online' ? '#34d399' : backendStatus === 'demo' ? '#fbbf24' : '#f87171'
-  const statusLabel = backendStatus === 'online' ? 'Backend Online' : backendStatus === 'demo' ? 'Demo Mode' : 'Backend Offline'
+  const statusColor = backendStatus === 'online' ? 'var(--success)' : backendStatus === 'offline' ? 'var(--error)' : 'var(--warning)'
 
   return (
     <div className="animate-fade-in space-y-8">
-
-      {/* Demo mode banner */}
-      {demo && (
-        <div className="flex items-start gap-3 p-4 rounded-xl text-sm"
-          style={{ background: 'rgba(120,53,15,0.3)', border: '1px solid #92400e', color: '#fcd34d' }}>
-          <Zap size={18} className="flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-display font-bold mb-1">🎭 Demo Mode Active</p>
-            <p className="text-xs" style={{ color: '#fde68a' }}>
-              This is a live frontend demo. The blockchain backend (Hyperledger Fabric) runs locally.
-              All data shown is sample data. Verify works with IDs: CERT-2024-001 to CERT-2024-005.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Hero */}
-      <div className="card relative overflow-hidden" style={{
-        background: 'linear-gradient(135deg, #18181b, #0c1a18)',
-        border: '1px solid #134e4a'
-      }}>
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: 'repeating-linear-gradient(0deg,transparent,transparent 30px,#14b8a6 30px,#14b8a6 31px),repeating-linear-gradient(90deg,transparent,transparent 30px,#14b8a6 30px,#14b8a6 31px)'
-        }} />
+      <div className="relative overflow-hidden rounded-2xl p-8"
+        style={{ background: 'linear-gradient(135deg, #1a0533 0%, #0d0b1a 60%, #0a1628 100%)', border: '1px solid rgba(124,58,237,0.3)' }}>
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, #7c3aed, transparent)', transform: 'translate(30%, -30%)' }} />
         <div className="relative">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: statusColor }} />
-            <span className="font-display text-xs tracking-widest uppercase" style={{ color: '#71717a' }}>
-              {statusLabel}
+            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: statusColor }}>
+              Backend {backendStatus}
             </span>
-            {backendStatus === 'online' && <CheckCircle size={12} style={{ color: '#34d399' }} />}
           </div>
-          <h1 className="font-display text-3xl font-bold mb-2" style={{ color: '#fafafa' }}>
-            Blockchain Certificate<br />
-            <span style={{ color: '#14b8a6' }}>Verification System</span>
+          <h1 className="text-3xl font-bold mb-2 text-white">
+            Welcome, Administrator
           </h1>
-          <p className="text-sm" style={{ color: '#71717a' }}>
-            Issue tamper-proof academic certificates secured by SHA-256 hashing
-            on Hyperledger Fabric. Two organizations, one immutable ledger.
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            Manage and verify blockchain-secured academic credentials for<br />
+            <strong style={{ color: '#a78bfa' }}>Goel Institute of Technology and Management</strong>
           </p>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Certificates Issued" value={stats.total} sub="on mychannel" />
-        <StatCard label="Organizations" value="2" sub="Org1 + Org2" />
-        <StatCard label="Hash Algorithm" value="SHA-256" sub="tamper-proof" color="#818cf8" />
-        <StatCard label="Chaincode" value="v2.0" sub="credential" />
-      </div>
-
-      {/* Quick Actions */}
-      <div>
-        <p className="label mb-4">Admin Actions</p>
-        <div className="grid sm:grid-cols-3 gap-4">
-          <QuickAction to="/issue" icon={PlusCircle} title="Issue Certificate"
-            desc="Generate PDF with QR code, store hash on blockchain" />
-          <QuickAction to="/all" icon={Activity} title="All Certificates"
-            desc="Browse every certificate stored on-chain" />
-          <QuickAction to="/verify" icon={Search} title="Verify Certificate"
-            desc="Verify authenticity by recomputing SHA-256 hash" />
-        </div>
-      </div>
-
-      {/* Network Info */}
-      <div>
-        <p className="label mb-4">Network Configuration</p>
-        <div className="card font-display text-xs space-y-0">
-          {[
-            ['Network',       'Hyperledger Fabric 2.5'],
-            ['Channel',       'mychannel'],
-            ['Chaincode',     'credential (Go)'],
-            ['State DB',      'CouchDB'],
-            ['TLS',           'Enabled'],
-            ['Orgs',          'Org1MSP + Org2MSP'],
-            ['Hash',          'SHA-256 (tamper detection)'],
-            ['PDF',           'iText7 + QR (ZXing)'],
-            ['Bulk Upload',   'Apache POI (Excel .xlsx)'],
-          ].map(([k, v]) => (
-            <div key={k} className="flex justify-between items-center py-2.5"
-              style={{ borderBottom: '1px solid #27272a' }}>
-              <span className="uppercase tracking-widest" style={{ color: '#71717a' }}>{k}</span>
-              <span style={{ color: '#14b8a6' }}>{v}</span>
+        {[
+          { label: 'Total Certificates', value: stats.total, icon: ShieldCheck, color: 'var(--accent-light)' },
+          { label: 'This Week', value: stats.recent, icon: TrendingUp, color: 'var(--success)' },
+          { label: 'Organizations', value: '2', icon: Database, color: '#f59e0b' },
+          { label: 'Cached Locally', value: cachedCount, icon: Clock, color: 'var(--text-muted)' },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="card">
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</p>
+              <Icon size={16} style={{ color, opacity: 0.7 }} />
             </div>
+            <p className="text-3xl font-bold" style={{ color }}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick actions */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--text-muted)' }}>
+          Quick Actions
+        </p>
+        <div className="grid sm:grid-cols-3 gap-4">
+          {[
+            { to: '/issue', icon: PlusCircle, title: 'Issue Certificate', desc: 'Generate PDF · Store SHA-256 hash on blockchain · Include roll number' },
+            { to: '/all',   icon: Activity,   title: 'View All Records', desc: 'Browse every certificate stored on Hyperledger Fabric ledger' },
+            { to: '/verify',icon: ShieldCheck,title: 'Verify Certificate', desc: 'Check authenticity by certId or roll number · Download PDF' },
+          ].map(({ to, icon: Icon, title, desc }) => (
+            <Link key={to} to={to} className="card card-hover group" style={{ textDecoration: 'none' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-all"
+                style={{ background: 'var(--accent-glow)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                <Icon size={18} style={{ color: 'var(--accent-light)' }} />
+              </div>
+              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{title}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{desc}</p>
+              <div className="flex items-center gap-1 mt-3 text-xs font-semibold" style={{ color: 'var(--accent-light)' }}>
+                Open <ArrowRight size={12} />
+              </div>
+            </Link>
           ))}
         </div>
       </div>
 
-      {/* Recent */}
+      {/* Recent certificates */}
       {recentCerts.length > 0 && (
         <div>
-          <p className="label mb-4">Recent Certificates</p>
-          <div className="space-y-2">
-            {recentCerts.map(c => (
-              <div key={c.certId} className="card flex items-center justify-between py-3 px-4">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+              Recent Certificates
+            </p>
+            <Link to="/all" className="text-xs font-semibold" style={{ color: 'var(--accent-light)' }}>
+              View all →
+            </Link>
+          </div>
+          <div className="card p-0 overflow-hidden">
+            {recentCerts.map((c, i) => (
+              <div key={c.certId} className="flex items-center justify-between p-4 transition-colors"
+                style={{ borderBottom: i < recentCerts.length - 1 ? '1px solid var(--border)' : 'none' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                 <div className="flex items-center gap-3">
-                  <ShieldCheck size={15} style={{ color: '#14b8a6' }} className="flex-shrink-0" />
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'var(--accent-glow)', border: '1px solid rgba(124,58,237,0.15)' }}>
+                    <ShieldCheck size={16} style={{ color: 'var(--accent-light)' }} />
+                  </div>
                   <div>
-                    <p className="font-display text-xs" style={{ color: '#fafafa' }}>{c.certId}</p>
-                    <p className="text-xs" style={{ color: '#71717a' }}>{c.studentName} · {c.course?.substring(0, 35)}{c.course?.length > 35 ? '...' : ''}</p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{c.studentName}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {c.certId} · Roll: {c.rollNo}
+                    </p>
                   </div>
                 </div>
-                <span className="text-xs font-display" style={{ color: '#14b8a6' }}>{c.issueDate}</span>
+                <div className="text-right">
+                  <p className="text-xs font-semibold" style={{ color: 'var(--accent-light)' }}>{c.course?.substring(0,20)}...</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.issueDate}</p>
+                </div>
               </div>
             ))}
           </div>

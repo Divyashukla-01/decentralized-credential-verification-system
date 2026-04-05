@@ -16,31 +16,27 @@ import java.util.Map;
 public class QRCodeUtil {
 
     /**
-     * Generates a QR code containing full certificate info as plain text.
-     * Works with ANY QR scanner (phone camera, apps) — no URL needed.
-     * Displays: ID, Student, Course, Date, Issuer, Hash, Status
+     * QR contains the Vercel public verification URL.
+     * This always works — Vercel is always live (free hosting).
+     * URL format: https://your-app.vercel.app/public/verify?certId=CERT-001
+     *
+     * When scanned:
+     * - If network up → shows full blockchain verification
+     * - If network down → shows cached certificate data from localStorage
      */
-    public static byte[] generateQRCode(String certId, String studentName,
-            String course, String issueDate, String issuerName, String hash)
+    public static byte[] generateQRCode(String certId, String vercelBaseUrl)
             throws WriterException, IOException {
 
-        String content =
-            "=== DCVS CERTIFICATE ===\n" +
-            "ID: " + certId + "\n" +
-            "Student: " + studentName + "\n" +
-            "Course: " + course + "\n" +
-            "Issued: " + issueDate + "\n" +
-            "Issuer: " + issuerName + "\n" +
-            "Hash: " + hash + "\n" +
-            "Blockchain: Hyperledger Fabric\n" +
-            "Status: BLOCKCHAIN VERIFIED";
+        // Build the public verification URL
+        String url = vercelBaseUrl + "/public/verify?certId=" + certId;
 
         Map<EncodeHintType, Object> hints = new HashMap<>();
-        hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
+        hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H);
         hints.put(EncodeHintType.MARGIN, 1);
+        hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
 
         QRCodeWriter writer = new QRCodeWriter();
-        BitMatrix matrix = writer.encode(content, BarcodeFormat.QR_CODE, 250, 250, hints);
+        BitMatrix matrix = writer.encode(url, BarcodeFormat.QR_CODE, 280, 280, hints);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         MatrixToImageWriter.writeToStream(matrix, "PNG", out);

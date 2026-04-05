@@ -8,11 +8,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 
 @Service
 public class FabricService {
+
     private static final Logger log = LoggerFactory.getLogger(FabricService.class);
+
     private final Gateway gateway;
     private final ObjectMapper objectMapper;
     private final String channelName;
@@ -31,16 +34,25 @@ public class FabricService {
         return gateway.getNetwork(channelName).getContract(chaincodeName);
     }
 
-    public void issueCertificate(String certId, String hash, String studentName,
-                                  String course, String issueDate, String issuerName, String timestamp) throws Exception {
-        log.info("Issuing certificate: certId={}", certId);
+    /**
+     * Issues a certificate — stores hash on blockchain
+     */
+    public void issueCertificate(String certId, String rollNo, String hash,
+                                  String studentName, String course,
+                                  String issueDate, String issuerName,
+                                  String timestamp) throws Exception {
+        log.info("Issuing certificate: certId={}, rollNo={}", certId, rollNo);
         try {
-            getContract().submitTransaction("IssueCertificate", certId, hash, studentName, course, issueDate, issuerName, timestamp);
+            getContract().submitTransaction("IssueCertificate",
+                    certId, rollNo, hash, studentName, course, issueDate, issuerName, timestamp);
         } catch (EndorseException | SubmitException | CommitStatusException | CommitException e) {
             throw new RuntimeException("Blockchain error: " + extractError(e), e);
         }
     }
 
+    /**
+     * Fetches certificate by certId
+     */
     public CertificateResponse getCertificate(String certId) throws Exception {
         try {
             byte[] result = getContract().evaluateTransaction("VerifyCertificate", certId);
@@ -50,11 +62,26 @@ public class FabricService {
         }
     }
 
+    /**
+     * Fetches certificate by roll number
+     */
+    public CertificateResponse getCertificateByRollNo(String rollNo) throws Exception {
+        try {
+            byte[] result = getContract().evaluateTransaction("GetCertificateByRollNo", rollNo);
+            return objectMapper.readValue(new String(result), CertificateResponse.class);
+        } catch (GatewayException e) {
+            throw new RuntimeException("No certificate found for roll number: " + extractError(e), e);
+        }
+    }
+
+    /**
+     * Gets all certificates
+     */
     public List<CertificateResponse> getAllCertificates() throws Exception {
         try {
             byte[] result = getContract().evaluateTransaction("GetAllCertificates");
             String json = new String(result);
-            if (json == null || json.isBlank() || json.equals("null")) return List.of();
+            if (json.isBlank() || json.equals("null")) return List.of();
             return objectMapper.readValue(json, new TypeReference<List<CertificateResponse>>() {});
         } catch (GatewayException e) {
             throw new RuntimeException("Error fetching certificates: " + extractError(e), e);
