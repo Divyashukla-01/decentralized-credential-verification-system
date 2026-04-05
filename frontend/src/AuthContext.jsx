@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import axios from 'axios'
 
 const AuthContext = createContext(null)
 
@@ -18,71 +17,27 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // ── Admin ────────────────────────────────────────────────
   const loginAdmin = (email, password) => {
     if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       const u = { role: 'admin', name: 'Administrator', email }
-      setUser(u)
-      localStorage.setItem('dcvs_user', JSON.stringify(u))
+      setUser(u); localStorage.setItem('dcvs_user', JSON.stringify(u))
       return { success: true }
     }
     return { success: false, message: 'Invalid admin credentials' }
   }
 
-  // ── Student OTP ──────────────────────────────────────────
-  const sendOtp = async (email) => {
-    try {
-      await axios.post('/api/auth/send-otp', { email })
-      return { success: true }
-    } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Failed to send OTP' }
+  // Called after successful API login
+  const loginStudentFromApi = (studentData) => {
+    const u = {
+      role: 'student',
+      name: studentData.name,
+      email: studentData.email,
+      rollNo: studentData.rollNo || '',
+      studentId: studentData.studentId || '',
+      id: studentData.id,
     }
-  }
-
-  const verifyOtp = async (email, otp) => {
-    try {
-      await axios.post('/api/auth/verify-otp', { email, otp })
-      return { success: true }
-    } catch (err) {
-      return { success: false, message: err.response?.data?.message || 'Invalid OTP' }
-    }
-  }
-
-  // ── Student Register ─────────────────────────────────────
-  const registerStudent = (name, email, rollNo, studentId) => {
-    const existing = JSON.parse(localStorage.getItem('dcvs_students') || '[]')
-    if (existing.find(s => s.email === email))
-      return { success: false, message: 'Email already registered' }
-    if (rollNo && existing.find(s => s.rollNo === rollNo))
-      return { success: false, message: 'Roll number already registered' }
-
-    const newStudent = {
-      name,
-      email,
-      rollNo: rollNo || '',
-      studentId: studentId || '',
-    }
-    localStorage.setItem('dcvs_students', JSON.stringify([...existing, newStudent]))
-    return { success: true }
-  }
-
-  // ── Student Login (after OTP verified) ───────────────────
-  const loginStudent = (email) => {
-    const existing = JSON.parse(localStorage.getItem('dcvs_students') || '[]')
-    const student = existing.find(s => s.email === email)
-    if (student) {
-      const u = {
-        role: 'student',
-        name: student.name,
-        email: student.email,
-        rollNo: student.rollNo || '',
-        studentId: student.studentId || '',
-      }
-      setUser(u)
-      localStorage.setItem('dcvs_user', JSON.stringify(u))
-      return { success: true }
-    }
-    return { success: false, message: 'Account not found. Please register first.' }
+    setUser(u)
+    localStorage.setItem('dcvs_user', JSON.stringify(u))
   }
 
   const logout = () => {
@@ -90,15 +45,11 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('dcvs_user')
   }
 
-  // ── Certificate cache ────────────────────────────────────
+  // Certificate cache
   const saveCertToCache = (cert) => {
     const certs = JSON.parse(localStorage.getItem(CERTS_KEY) || '[]')
-    const exists = certs.find(c => c.certId === cert.certId)
-    if (!exists) {
-      localStorage.setItem(CERTS_KEY, JSON.stringify([
-        ...certs,
-        { ...cert, cachedAt: new Date().toISOString() }
-      ]))
+    if (!certs.find(c => c.certId === cert.certId)) {
+      localStorage.setItem(CERTS_KEY, JSON.stringify([...certs, { ...cert, cachedAt: new Date().toISOString() }]))
     }
   }
 
@@ -111,10 +62,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user,
-      loginAdmin, loginStudent,
-      sendOtp, verifyOtp, registerStudent,
-      logout,
+      user, loginAdmin, loginStudentFromApi, logout,
       saveCertToCache, getCachedCerts, clearCertCache,
     }}>
       {children}

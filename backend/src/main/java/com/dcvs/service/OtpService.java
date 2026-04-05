@@ -23,83 +23,74 @@ public class OtpService {
     private String fromEmail;
 
     @Value("${app.otp.expiry-minutes:5}")
-    private int otpExpiryMinutes;
+    private int expiryMinutes;
 
-    @Value("${app.issuer-name:DCVS University}")
+    @Value("${app.issuer-name:DCVS}")
     private String institutionName;
 
-    // email → {otp, expiryTime}
     private final ConcurrentHashMap<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
 
     public OtpService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
 
-    /**
-     * Generates a 6-digit OTP and sends it to the given email.
-     */
-    public void generateAndSendOtp(String email) throws Exception {
+    public void generateAndSendOtp(String email, String purpose) throws Exception {
         String otp = String.format("%06d", new SecureRandom().nextInt(999999));
-        Instant expiry = Instant.now().plusSeconds(otpExpiryMinutes * 60L);
+        Instant expiry = Instant.now().plusSeconds(expiryMinutes * 60L);
         otpStore.put(email.toLowerCase(), new OtpEntry(otp, expiry));
-
-        log.info("OTP generated for {}: {} (expires at {})", email, otp, expiry);
-        sendOtpEmail(email, otp);
+        log.info("OTP for {} ({}): {}", email, purpose, otp);
+        sendEmail(email, otp, purpose);
     }
 
-    /**
-     * Validates the OTP for a given email.
-     */
     public boolean validateOtp(String email, String otp) {
         OtpEntry entry = otpStore.get(email.toLowerCase());
-        if (entry == null) {
-            log.warn("No OTP found for email: {}", email);
-            return false;
-        }
-        if (Instant.now().isAfter(entry.expiry())) {
+        if (entry == null || Instant.now().isAfter(entry.expiry())) {
             otpStore.remove(email.toLowerCase());
-            log.warn("OTP expired for email: {}", email);
             return false;
         }
-        if (!entry.otp().equals(otp)) {
-            log.warn("Invalid OTP for email: {}", email);
-            return false;
-        }
+        if (!entry.otp().equals(otp)) return false;
         otpStore.remove(email.toLowerCase());
-        log.info("OTP validated successfully for: {}", email);
         return true;
     }
 
-    private void sendOtpEmail(String toEmail, String otp) throws Exception {
+    private void sendEmail(String to, String otp, String purpose) throws Exception {
+        String subject = purpose.equals("reset")
+                ? "Reset Your DCVS Password"
+                : "Verify Your Email — " + institutionName;
+
+        String purposeText = purpose.equals("reset")
+                ? "You requested a password reset."
+                : "You are signing up for the Credential Verification System.";
+
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
         helper.setFrom(fromEmail);
-        helper.setTo(toEmail);
-        helper.setSubject("Your DCVS Verification Code — " + institutionName);
+        helper.setTo(to);
+        helper.setSubject(subject);
 
         String html = """
-            <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 500px; margin: 0 auto; background: #0a0a0f; color: #e2e8f0; border-radius: 12px; overflow: hidden;">
-              <div style="background: linear-gradient(135deg, #7c3aed, #4c1d95); padding: 32px 24px; text-align: center;">
-                <h1 style="margin: 0; font-size: 24px; color: white; letter-spacing: 2px;">DCVS</h1>
-                <p style="margin: 8px 0 0; color: #c4b5fd; font-size: 13px;">%s</p>
+            <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0a1e;border-radius:16px;overflow:hidden;">
+              <div style="background:linear-gradient(135deg,#1565c0,#0d47a1);padding:32px 24px;text-align:center;">
+                <h2 style="margin:0;color:white;font-size:20px;letter-spacing:2px;">%s</h2>
+                <p style="margin:8px 0 0;color:#90caf9;font-size:13px;">Credential Verification System</p>
               </div>
-              <div style="padding: 32px 24px;">
-                <p style="color: #a78bfa; font-size: 14px; margin: 0 0 8px;">Your verification code</p>
-                <div style="background: #1a1a2e; border: 2px solid #7c3aed; border-radius: 12px; padding: 24px; text-align: center; margin: 16px 0;">
-                  <span style="font-size: 42px; font-weight: bold; color: #a78bfa; letter-spacing: 12px;">%s</span>
+              <div style="padding:32px 24px;background:#0f0a1e;">
+                <p style="color:#90caf9;font-size:14px;margin:0 0 8px;">%s</p>
+                <p style="color:#e3f2fd;font-size:14px;">Your verification code:</p>
+                <div style="background:#1a237e;border:2px solid #1565c0;border-radius:12px;padding:24px;text-align:center;margin:16px 0;">
+                  <span style="font-size:44px;font-weight:bold;color:#90caf9;letter-spacing:14px;">%s</span>
                 </div>
-                <p style="color: #64748b; font-size: 13px;">This code expires in <strong style="color: #a78bfa;">%d minutes</strong>. Do not share it with anyone.</p>
-                <p style="color: #64748b; font-size: 12px; margin-top: 24px; border-top: 1px solid #1e1e2e; padding-top: 16px;">
-                  Decentralized Credential Verification System · Secured by Hyperledger Fabric
+                <p style="color:#546e7a;font-size:13px;">Expires in <strong style="color:#90caf9;">%d minutes</strong>. Do not share this code.</p>
+                <p style="color:#37474f;font-size:11px;margin-top:24px;border-top:1px solid #1a237e;padding-top:16px;">
+                  %s · Secured by Hyperledger Fabric
                 </p>
               </div>
             </div>
-            """.formatted(institutionName, otp, otpExpiryMinutes);
+            """.formatted(institutionName, purposeText, otp, expiryMinutes, institutionName);
 
         helper.setText(html, true);
         mailSender.send(message);
-        log.info("OTP email sent to: {}", toEmail);
+        log.info("OTP email sent to: {}", to);
     }
 
     private record OtpEntry(String otp, Instant expiry) {}

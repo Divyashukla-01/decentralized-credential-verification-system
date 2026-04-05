@@ -1,175 +1,189 @@
 import { useState, useEffect } from 'react'
-import { Shield, ShieldCheck, ShieldX, Loader2, Hash, User, BookOpen, Calendar, Building, Link2, AlertTriangle } from 'lucide-react'
+import { ShieldCheck, ShieldX, Loader2, AlertTriangle, Hash, User, BookOpen, Calendar, Building, Link2, CheckCircle, XCircle } from 'lucide-react'
 import axios from 'axios'
 
-function Field({ icon: Icon, label, value, mono }) {
+function Field({ icon: Icon, label, value, mono, highlight }) {
+  if (!value) return null
   return (
-    <div className="flex items-start gap-3 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-      <Icon size={15} style={{ color: 'var(--accent-light)', flexShrink: 0, marginTop: 2 }} />
-      <div className="flex-1 min-w-0">
-        <p className="label" style={{ marginBottom: 2 }}>{label}</p>
-        <p className={`text-sm break-all ${mono ? 'font-display' : ''}`} style={{ color: 'var(--text-primary)' }}>{value || '—'}</p>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 0', borderBottom: '1px solid #e3f2fd' }}>
+      <Icon size={16} style={{ color: '#1565c0', flexShrink: 0, marginTop: 2 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#78909c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px', fontFamily: 'sans-serif' }}>{label}</p>
+        <p style={{ fontSize: '0.9rem', color: highlight || '#0d47a1', wordBreak: 'break-all', fontFamily: mono ? 'monospace' : 'sans-serif', fontWeight: mono ? 400 : 500 }}>{value}</p>
       </div>
     </div>
   )
 }
 
 export default function PublicVerifyPage() {
-  const [certId, setCertId]     = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [result, setResult]     = useState(null)
-  const [autoLoaded, setAutoLoaded] = useState(false)
+  const [certId, setCertId]   = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult]   = useState(null)
 
-  // Auto-verify if certId in URL params (QR scan)
+  // Auto-verify from URL params (QR scan)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const id = params.get('certId')
-    if (id) {
-      setCertId(id)
-      setAutoLoaded(true)
-      verify(id)
-    }
+    if (id) { setCertId(id); doVerify(id) }
   }, [])
 
-  const verify = async (id) => {
-    const targetId = id || certId
-    if (!targetId.trim()) return
+  const doVerify = async (id) => {
+    const target = id || certId
+    if (!target.trim()) return
     setLoading(true); setResult(null)
     try {
-      const res = await axios.get(`/api/public/verify/${targetId.trim()}`)
+      const res = await axios.get(`/api/public/verify/${target.trim()}`)
       setResult(res.data?.data)
     } catch (err) {
-      setResult({
-        status: 'NOT_FOUND',
-        valid: false,
-        message: 'Certificate not found on blockchain',
-        certId: targetId,
-      })
+      setResult({ status: 'NOT_FOUND', valid: false,
+        message: 'Certificate not found on blockchain or database', certId: target })
     } finally { setLoading(false) }
   }
 
-  const statusConfig = {
-    VALID:     { color: 'var(--success)', bg: 'var(--success-bg)', border: 'var(--success-border)', icon: ShieldCheck, label: '✅ Verified — Tamper-Proof' },
-    INVALID:   { color: 'var(--error)', bg: 'var(--error-bg)', border: 'var(--error-border)', icon: ShieldX, label: '❌ Tampered Certificate' },
-    NOT_FOUND: { color: 'var(--warning)', bg: 'var(--warning-bg)', border: 'rgba(217,119,6,0.2)', icon: AlertTriangle, label: '⚠️ Certificate Not Found' },
-  }
-  const sc = result ? (statusConfig[result.status] || statusConfig.NOT_FOUND) : null
+  const isValid = result?.status === 'VALID'
+  const isInvalid = result?.status === 'INVALID'
+  const notFound = result?.status === 'NOT_FOUND'
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+    <div style={{ minHeight: '100vh', background: '#f0f4ff', fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+
       {/* Header */}
-      <header style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '1rem 1.5rem' }}>
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #5b21b6)' }}>
-            <Shield size={18} color="white" />
+      <div style={{ background: 'linear-gradient(135deg, #0d47a1, #1565c0)', padding: '20px 24px', boxShadow: '0 2px 12px rgba(13,71,161,0.3)' }}>
+        <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '42px', height: '42px', background: 'rgba(255,255,255,0.15)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={22} color="white" />
           </div>
           <div>
-            <p className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Certificate Verification</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Goel Institute of Technology and Management</p>
+            <p style={{ color: 'white', fontWeight: 700, fontSize: '1rem', margin: 0 }}>Certificate Verification</p>
+            <p style={{ color: '#90caf9', fontSize: '0.78rem', margin: 0 }}>Goel Institute of Technology and Management</p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6 animate-fade-in">
+      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '24px 16px' }}>
 
-        {/* Info banner */}
-        <div className="glass-card text-center">
-          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-            🔐 Blockchain Certificate Verification
-          </p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            This system verifies certificates stored on Hyperledger Fabric blockchain.
-            Results are cryptographically tamper-proof.
-          </p>
+        {/* Info card */}
+        <div style={{ background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: '12px', padding: '16px', marginBottom: '20px', display: 'flex', gap: '12px' }}>
+          <ShieldCheck size={20} style={{ color: '#1565c0', flexShrink: 0 }} />
+          <div>
+            <p style={{ fontWeight: 700, color: '#0d47a1', fontSize: '0.9rem', margin: '0 0 4px' }}>🔐 Blockchain Certificate Verification</p>
+            <p style={{ color: '#1565c0', fontSize: '0.8rem', margin: 0 }}>This system verifies certificates stored on Hyperledger Fabric blockchain using SHA-256 cryptographic hashing. Results are tamper-proof.</p>
+          </div>
         </div>
 
-        {/* Search box */}
-        <div className="card">
-          <label className="label">Certificate ID</label>
-          <div className="flex gap-2">
-            <input value={certId}
-              onChange={e => { setCertId(e.target.value); setResult(null) }}
+        {/* Search */}
+        <div style={{ background: 'white', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(13,71,161,0.08)', border: '1px solid #e3f2fd' }}>
+          <p style={{ fontSize: '0.78rem', fontWeight: 600, color: '#546e7a', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Certificate ID</p>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input value={certId} onChange={e => { setCertId(e.target.value); setResult(null) }}
               placeholder="Enter Certificate ID (e.g. CERT-2024-001)"
-              className="input-field" disabled={loading}
-              onKeyDown={e => e.key === 'Enter' && verify()} />
-            <button onClick={() => verify()} disabled={loading || !certId.trim()} className="btn-primary"
-              style={{ width: 'auto', padding: '0.75rem 1.25rem' }}>
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
+              disabled={loading}
+              onKeyDown={e => e.key === 'Enter' && doVerify()}
+              style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #bbdefb', fontSize: '0.9rem', outline: 'none', color: '#0d47a1' }} />
+            <button onClick={() => doVerify()} disabled={loading || !certId.trim()}
+              style={{ background: '#1565c0', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading || !certId.trim() ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <ShieldCheck size={16} />}
+              Verify
             </button>
           </div>
         </div>
 
         {/* Loading */}
         {loading && (
-          <div className="card text-center py-10">
-            <Loader2 size={32} className="animate-spin mx-auto mb-3" style={{ color: 'var(--accent-light)' }} />
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Querying Blockchain...</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Connecting to Hyperledger Fabric ledger</p>
+          <div style={{ background: 'white', borderRadius: '14px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(13,71,161,0.08)' }}>
+            <Loader2 size={36} style={{ color: '#1565c0', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+            <p style={{ fontWeight: 600, color: '#0d47a1' }}>Querying Blockchain...</p>
+            <p style={{ color: '#78909c', fontSize: '0.85rem' }}>Connecting to Hyperledger Fabric ledger</p>
           </div>
         )}
 
         {/* Result */}
         {result && !loading && (
-          <div className="animate-slide-up space-y-4">
-            {/* Status */}
-            <div className="p-5 rounded-2xl flex items-start gap-4"
-              style={{ background: sc.bg, border: `1px solid ${sc.border}` }}>
-              <sc.icon size={28} style={{ color: sc.color, flexShrink: 0 }} />
+          <div>
+            {/* Status banner */}
+            <div style={{
+              background: isValid ? '#e8f5e9' : isInvalid ? '#ffebee' : '#fff8e1',
+              border: `2px solid ${isValid ? '#43a047' : isInvalid ? '#e53935' : '#ffa000'}`,
+              borderRadius: '14px', padding: '20px', marginBottom: '16px',
+              display: 'flex', alignItems: 'flex-start', gap: '14px'
+            }}>
+              {isValid ? <ShieldCheck size={32} style={{ color: '#2e7d32', flexShrink: 0 }} />
+                : isInvalid ? <ShieldX size={32} style={{ color: '#c62828', flexShrink: 0 }} />
+                : <AlertTriangle size={32} style={{ color: '#e65100', flexShrink: 0 }} />}
               <div>
-                <p className="font-bold text-base" style={{ color: sc.color }}>{sc.label}</p>
-                <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>{result.message}</p>
+                <p style={{ fontWeight: 800, fontSize: '1.1rem', margin: '0 0 4px',
+                  color: isValid ? '#1b5e20' : isInvalid ? '#b71c1c' : '#e65100' }}>
+                  {isValid ? '✅ Certificate Verified — Authentic & Tamper-Proof'
+                    : isInvalid ? '❌ Certificate Tampered — Invalid'
+                    : '⚠️ Certificate Not Found'}
+                </p>
+                <p style={{ color: isValid ? '#388e3c' : isInvalid ? '#c62828' : '#f57c00', fontSize: '0.88rem', margin: 0 }}>
+                  {result.message}
+                </p>
               </div>
             </div>
 
             {/* Certificate details */}
             {result.studentName && (
-              <div className="card">
-                <p className="font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Certificate Details</p>
+              <div style={{ background: 'white', borderRadius: '14px', padding: '24px', boxShadow: '0 2px 8px rgba(13,71,161,0.08)', border: '1px solid #e3f2fd' }}>
+                <p style={{ fontWeight: 700, color: '#0d47a1', fontSize: '1rem', marginBottom: '4px', borderBottom: '2px solid #1565c0', paddingBottom: '10px' }}>
+                  📋 Certificate Details
+                </p>
+
                 <Field icon={Hash}     label="Certificate ID"  value={result.certId}      mono />
                 <Field icon={Hash}     label="Roll Number"     value={result.rollNo}      mono />
                 <Field icon={User}     label="Student Name"    value={result.studentName} />
-                <Field icon={BookOpen} label="Course / Degree" value={result.course} />
+                <Field icon={BookOpen} label="Course / Program" value={result.course} />
                 <Field icon={Calendar} label="Date of Issue"   value={result.issueDate} />
                 <Field icon={Building} label="Issued By"       value={result.issuerName} />
                 <Field icon={Building} label="Organization"    value={result.issuerOrg}   mono />
                 <Field icon={Link2}    label="Transaction ID"  value={result.txId}        mono />
 
                 {/* Hash comparison */}
-                <div className="mt-4 p-4 rounded-xl" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
-                  <p className="label mb-3">Hash Verification</p>
-                  <div className="space-y-3 text-xs font-display">
-                    <div>
-                      <p style={{ color: 'var(--text-muted)' }} className="mb-1">Blockchain Hash (stored):</p>
-                      <p className="break-all" style={{ color: 'var(--accent-light)' }}>{result.blockchainHash}</p>
+                {result.blockchainHash && (
+                  <div style={{ marginTop: '20px', background: '#f8f9ff', borderRadius: '10px', padding: '16px', border: '1px solid #e3f2fd' }}>
+                    <p style={{ fontWeight: 700, color: '#0d47a1', fontSize: '0.88rem', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      🔐 Hash Verification
+                    </p>
+
+                    <div style={{ marginBottom: '10px' }}>
+                      <p style={{ fontSize: '0.75rem', color: '#78909c', margin: '0 0 4px' }}>Blockchain Hash (immutably stored):</p>
+                      <p style={{ fontSize: '0.78rem', fontFamily: 'monospace', color: '#1565c0', wordBreak: 'break-all', background: '#e3f2fd', padding: '8px 10px', borderRadius: '6px', margin: 0 }}>
+                        {result.blockchainHash}
+                      </p>
                     </div>
-                    <div>
-                      <p style={{ color: 'var(--text-muted)' }} className="mb-1">Computed Hash (now):</p>
-                      <p className="break-all" style={{ color: result.valid ? 'var(--success)' : 'var(--error)' }}>
+
+                    <div style={{ marginBottom: '12px' }}>
+                      <p style={{ fontSize: '0.75rem', color: '#78909c', margin: '0 0 4px' }}>Recomputed Hash (SHA-256 now):</p>
+                      <p style={{ fontSize: '0.78rem', fontFamily: 'monospace', color: result.valid ? '#2e7d32' : '#c62828', wordBreak: 'break-all', background: result.valid ? '#e8f5e9' : '#ffebee', padding: '8px 10px', borderRadius: '6px', margin: 0 }}>
                         {result.computedHash}
                       </p>
                     </div>
-                    <div className="p-3 rounded-lg text-center font-bold"
-                      style={{
-                        background: result.valid ? 'var(--success-bg)' : 'var(--error-bg)',
-                        border: `1px solid ${result.valid ? 'var(--success-border)' : 'var(--error-border)'}`,
-                        color: result.valid ? 'var(--success)' : 'var(--error)',
-                      }}>
+
+                    <div style={{
+                      padding: '12px', borderRadius: '8px', textAlign: 'center', fontWeight: 700, fontSize: '0.88rem',
+                      background: result.valid ? '#e8f5e9' : '#ffebee',
+                      border: `1px solid ${result.valid ? '#43a047' : '#e53935'}`,
+                      color: result.valid ? '#1b5e20' : '#b71c1c',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                    }}>
                       {result.valid
-                        ? '✅ Hashes Match — Certificate is Authentic'
-                        : '❌ Hash Mismatch — Certificate May Be Tampered'}
+                        ? <><CheckCircle size={18} /> Hashes Match — Certificate is Authentic</>
+                        : <><XCircle size={18} /> Hash Mismatch — Certificate Has Been Tampered</>}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        <p className="text-center text-xs font-display" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
-          Secured by Hyperledger Fabric Blockchain · SHA-256 Hash Verification
+        <p style={{ textAlign: 'center', fontSize: '0.72rem', color: '#90a4ae', marginTop: '24px' }}>
+          Secured by Hyperledger Fabric Blockchain · SHA-256 Hash Verification · Goel Institute of Technology and Management
         </p>
       </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
