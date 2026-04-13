@@ -41,38 +41,50 @@ public class CertificateService {
     }
 
     public byte[] issueCertificate(CertificateRequest req) throws Exception {
-        log.info("Issuing: certId={}, category={}", req.getCertId(), req.getCategory());
+        log.info("Issuing: certId={}, rollNo={}, category={}", req.getCertId(), req.getRollNo(), req.getCategory());
 
         String hash = HashUtil.generateHash(req.getStudentName(), req.getRollNo(),
                 req.getCourse(), req.getIssueDate(), req.getCertId());
         String timestamp = Instant.now().toString();
         String category = req.getCategory() != null ? req.getCategory() : "DEGREE_COMPLETION";
 
+        // Store hash on blockchain
         fabricService.issueCertificate(req.getCertId(), req.getRollNo(), hash,
                 req.getStudentName(), req.getCourse(), req.getIssueDate(),
                 req.getIssuerName(), timestamp);
 
-        String txId = "N/A", issuerOrg = "Org1MSP";
+        // Fetch TxID from blockchain
+        String txId = "N/A";
+        String issuerOrg = "Org1MSP";
         try {
             CertificateResponse stored = fabricService.getCertificate(req.getCertId());
-            if (stored.getTxId() != null) txId = stored.getTxId();
-            if (stored.getIssuerOrg() != null) issuerOrg = stored.getIssuerOrg();
+            txId = stored.getTxId() != null ? stored.getTxId() : "N/A";
+            issuerOrg = stored.getIssuerOrg() != null ? stored.getIssuerOrg() : "Org1MSP";
         } catch (Exception e) {
             log.warn("Could not fetch txId: {}", e.getMessage());
         }
 
-        // Save to PostgreSQL for offline access
+        // ── Save metadata to PostgreSQL ─────────────────────────
         try {
-            metadataRepo.save(CertificateMetadata.builder()
-                    .certId(req.getCertId()).rollNo(req.getRollNo())
-                    .studentName(req.getStudentName()).course(req.getCourse())
-                    .issueDate(req.getIssueDate()).issuerName(req.getIssuerName())
-                    .category(category).hash(hash).txId(txId).issuerOrg(issuerOrg)
-                    .build());
+            CertificateMetadata meta = CertificateMetadata.builder()
+                    .certId(req.getCertId())
+                    .rollNo(req.getRollNo())
+                    .studentName(req.getStudentName())
+                    .course(req.getCourse())
+                    .issueDate(req.getIssueDate())
+                    .issuerName(req.getIssuerName())
+                    .category(category)
+                    .hash(hash)
+                    .txId(txId)
+                    .issuerOrg(issuerOrg)
+                    .build();
+            metadataRepo.save(meta);
+            log.info("Certificate metadata saved to PostgreSQL: {}", req.getCertId());
         } catch (Exception e) {
-            log.error("DB save failed: {}", e.getMessage());
+            log.error("Failed to save metadata to DB: {}", e.getMessage());
         }
 
+        // Generate QR + PDF
         byte[] qrBytes = QRCodeUtil.generateQRCode(req.getCertId(), vercelUrl);
         return CertificatePdfGenerator.generate(req.getCertId(), req.getRollNo(),
                 req.getStudentName(), req.getCourse(), req.getIssueDate(),
@@ -95,29 +107,20 @@ public class CertificateService {
                     String issueDate   = getCellValue(row, 4);
                     String issuerName  = getCellValue(row, 5).isEmpty() ? defaultIssuerName : getCellValue(row, 5);
                     String category    = getCellValue(row, 6).isEmpty() ? "DEGREE_COMPLETION" : getCellValue(row, 6);
-
                     if (certId.isEmpty() || studentName.isEmpty()) {
-                        result.put("row", String.valueOf(i+1));
-                        result.put("status","SKIPPED");
-                        result.put("reason","Missing certId or studentName");
-                        results.add(result); continue;
+                        result.put("row", String.valueOf(i+1)); result.put("status","SKIPPED");
+                        result.put("reason","Missing certId or studentName"); results.add(result); continue;
                     }
-
                     String hash = HashUtil.generateHash(studentName, rollNo, course, issueDate, certId);
-                    fabricService.issueCertificate(certId, rollNo, hash, studentName,
-                            course, issueDate, issuerName, Instant.now().toString());
+                    fabricService.issueCertificate(certId, rollNo, hash, studentName, course, issueDate, issuerName, Instant.now().toString());
                     metadataRepo.save(CertificateMetadata.builder()
                             .certId(certId).rollNo(rollNo).studentName(studentName)
                             .course(course).issueDate(issueDate).issuerName(issuerName)
                             .category(category).hash(hash).build());
-
-                    result.put("row", String.valueOf(i+1));
-                    result.put("certId", certId);
-                    result.put("studentName", studentName);
-                    result.put("status","SUCCESS");
+                    result.put("row", String.valueOf(i+1)); result.put("certId", certId);
+                    result.put("studentName", studentName); result.put("status","SUCCESS");
                 } catch (Exception e) {
-                    result.put("row", String.valueOf(i+1));
-                    result.put("status","FAILED");
+                    result.put("row", String.valueOf(i+1)); result.put("status","FAILED");
                     result.put("reason", e.getMessage());
                 }
                 results.add(result);
@@ -126,11 +129,15 @@ public class CertificateService {
         return results;
     }
 
+    /**
+     * Verify by certId — tries blockchain first, falls back to PostgreSQL
+     */
     public VerificationResult verify(String certId) {
         try {
-            return buildResult(fabricService.getCertificate(certId));
-        } catch (Exception e) {
-            log.warn("Blockchain unavailable for certId={}, trying DB", certId);
+            CertificateResponse cert = fabricService.getCertificate(certId);
+            return buildResult(cert);
+        } catch (Exception blockchainEx) {
+            log.warn("Blockchain unavailable, trying DB for certId={}", certId);
             return metadataRepo.findById(certId)
                     .map(this::buildResultFromDb)
                     .orElse(VerificationResult.builder()
@@ -139,51 +146,21 @@ public class CertificateService {
         }
     }
 
+    /**
+     * Verify by roll number — tries blockchain first, falls back to PostgreSQL
+     */
     public VerificationResult verifyByRollNo(String rollNo) {
         try {
-            return buildResult(fabricService.getCertificateByRollNo(rollNo));
-        } catch (Exception e) {
-            log.warn("Blockchain unavailable for rollNo={}, trying DB", rollNo);
+            CertificateResponse cert = fabricService.getCertificateByRollNo(rollNo);
+            return buildResult(cert);
+        } catch (Exception blockchainEx) {
+            log.warn("Blockchain unavailable, trying DB for rollNo={}", rollNo);
             return metadataRepo.findByRollNo(rollNo)
                     .map(this::buildResultFromDb)
                     .orElse(VerificationResult.builder()
                             .valid(false).status("NOT_FOUND").rollNo(rollNo)
-                            .message("No certificate found for roll number: " + rollNo).build());
+                            .message("No certificate found for roll: " + rollNo).build());
         }
-    }
-
-    /**
-     * Download certificate PDF.
-     * Tries blockchain first — if offline, generates from PostgreSQL data.
-     * This fixes the "Blockchain must be running" error.
-     */
-    public byte[] downloadCertificate(String certId) throws Exception {
-        String studentName, rollNo, course, issueDate, issuerName, hash, txId, category;
-
-        try {
-            // Try blockchain first
-            CertificateResponse cert = fabricService.getCertificate(certId);
-            studentName = cert.getStudentName(); rollNo = cert.getRollNo();
-            course = cert.getCourse(); issueDate = cert.getIssueDate();
-            issuerName = cert.getIssuerName(); hash = cert.getHash();
-            txId = cert.getTxId() != null ? cert.getTxId() : "N/A";
-            category = "DEGREE_COMPLETION";
-        } catch (Exception e) {
-            log.warn("Blockchain offline for download certId={}, using DB", certId);
-            // Fall back to PostgreSQL
-            CertificateMetadata meta = metadataRepo.findById(certId)
-                    .orElseThrow(() -> new RuntimeException(
-                            "Certificate not found in blockchain or database"));
-            studentName = meta.getStudentName(); rollNo = meta.getRollNo();
-            course = meta.getCourse(); issueDate = meta.getIssueDate();
-            issuerName = meta.getIssuerName(); hash = meta.getHash();
-            txId = meta.getTxId() != null ? meta.getTxId() : "N/A";
-            category = meta.getCategory() != null ? meta.getCategory() : "DEGREE_COMPLETION";
-        }
-
-        byte[] qrBytes = QRCodeUtil.generateQRCode(certId, vercelUrl);
-        return CertificatePdfGenerator.generate(certId, rollNo, studentName,
-                course, issueDate, issuerName, hash, txId, vercelUrl, category, qrBytes);
     }
 
     private VerificationResult buildResult(CertificateResponse cert) {
@@ -193,7 +170,7 @@ public class CertificateService {
         return VerificationResult.builder()
                 .valid(valid).status(valid ? "VALID" : "INVALID")
                 .message(valid ? "✅ Certificate is authentic and tamper-proof"
-                               : "❌ Certificate tampered — hash mismatch")
+                               : "❌ Certificate has been tampered — hash mismatch")
                 .certId(cert.getCertId()).rollNo(cert.getRollNo())
                 .studentName(cert.getStudentName()).course(cert.getCourse())
                 .issueDate(cert.getIssueDate()).issuerName(cert.getIssuerName())
@@ -209,7 +186,7 @@ public class CertificateService {
         boolean valid = computed.equals(m.getHash());
         return VerificationResult.builder()
                 .valid(valid).status(valid ? "VALID" : "INVALID")
-                .message(valid ? "✅ Certificate verified (database — blockchain offline)"
+                .message(valid ? "✅ Certificate verified (from database — blockchain offline)"
                                : "❌ Certificate tampered")
                 .certId(m.getCertId()).rollNo(m.getRollNo())
                 .studentName(m.getStudentName()).course(m.getCourse())
@@ -217,6 +194,15 @@ public class CertificateService {
                 .issuerOrg(m.getIssuerOrg()).txId(m.getTxId())
                 .blockchainHash(m.getHash()).computedHash(computed)
                 .build();
+    }
+
+    public byte[] downloadCertificate(String certId) throws Exception {
+        CertificateResponse cert = fabricService.getCertificate(certId);
+        byte[] qrBytes = QRCodeUtil.generateQRCode(cert.getCertId(), vercelUrl);
+        return CertificatePdfGenerator.generate(cert.getCertId(), cert.getRollNo(),
+                cert.getStudentName(), cert.getCourse(), cert.getIssueDate(),
+                cert.getIssuerName(), cert.getHash(), cert.getTxId(), vercelUrl,
+                "DEGREE_COMPLETION", qrBytes);
     }
 
     public List<CertificateMetadata> getAllFromDb() {
