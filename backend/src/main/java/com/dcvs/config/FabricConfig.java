@@ -6,9 +6,11 @@ import io.grpc.ManagedChannel;
 import io.grpc.TlsChannelCredentials;
 import org.hyperledger.fabric.client.Gateway;
 import org.hyperledger.fabric.client.identity.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,50 +24,64 @@ import java.util.stream.Stream;
 @Configuration
 public class FabricConfig {
 
-    @Value("${fabric.msp-id}")
+    @Value("${fabric.msp-id:Org1MSP}")
     private String mspId;
 
-    @Value("${fabric.peer-endpoint}")
+    @Value("${fabric.peer-endpoint:localhost:7051}")
     private String peerEndpoint;
 
-    @Value("${fabric.peer-host-alias}")
+    @Value("${fabric.peer-host-alias:peer0.org1.example.com}")
     private String peerHostAlias;
 
-    @Value("${fabric.tls-cert-path}")
+    @Value("${fabric.tls-cert-path:}")
     private String tlsCertPath;
 
-    @Value("${fabric.cert-path}")
+    @Value("${fabric.cert-path:}")
     private String certPath;
 
-    @Value("${fabric.key-path}")
+    @Value("${fabric.key-path:}")
     private String keyPath;
 
     @Bean
-    public Gateway fabricGateway() throws Exception {
-        // Load TLS certificate for gRPC channel
-        Path tlsCertFile = Paths.get(tlsCertPath);
+    @Lazy
+    public Gateway fabricGateway() {
+        try {
+            if (tlsCertPath == null || tlsCertPath.isEmpty()) {
+                System.err.println("WARNING: Fabric TLS cert path not configured. Fabric Gateway disabled.");
+                return null;
+            }
 
-        ChannelCredentials credentials = TlsChannelCredentials.newBuilder()
-                .trustManager(tlsCertFile.toFile())
-                .build();
+            Path tlsCertFile = Paths.get(tlsCertPath);
+            if (!tlsCertFile.toFile().exists()) {
+                System.err.println("WARNING: Fabric TLS cert not found at: " + tlsCertPath + ". Fabric Gateway disabled.");
+                return null;
+            }
 
-        ManagedChannel channel = Grpc.newChannelBuilder(peerEndpoint, credentials)
-                .overrideAuthority(peerHostAlias)
-                .build();
+            ChannelCredentials credentials = TlsChannelCredentials.newBuilder()
+                    .trustManager(tlsCertFile.toFile())
+                    .build();
 
-        // Load identity
-        Identity identity = newIdentity();
-        Signer signer = newSigner();
+            ManagedChannel channel = Grpc.newChannelBuilder(peerEndpoint, credentials)
+                    .overrideAuthority(peerHostAlias)
+                    .build();
 
-        return Gateway.newInstance()
-                .identity(identity)
-                .signer(signer)
-                .connection(channel)
-                .evaluateOptions(options -> options.withDeadlineAfter(5, TimeUnit.SECONDS))
-                .endorseOptions(options -> options.withDeadlineAfter(15, TimeUnit.SECONDS))
-                .submitOptions(options -> options.withDeadlineAfter(5, TimeUnit.SECONDS))
-                .commitStatusOptions(options -> options.withDeadlineAfter(60, TimeUnit.SECONDS))
-                .connect();
+            Identity identity = newIdentity();
+            Signer signer = newSigner();
+
+            return Gateway.newInstance()
+                    .identity(identity)
+                    .signer(signer)
+                    .connection(channel)
+                    .evaluateOptions(options -> options.withDeadlineAfter(5, TimeUnit.SECONDS))
+                    .endorseOptions(options -> options.withDeadlineAfter(15, TimeUnit.SECONDS))
+                    .submitOptions(options -> options.withDeadlineAfter(5, TimeUnit.SECONDS))
+                    .commitStatusOptions(options -> options.withDeadlineAfter(60, TimeUnit.SECONDS))
+                    .connect();
+
+        } catch (Exception e) {
+            System.err.println("WARNING: Fabric Gateway could not be initialized: " + e.getMessage());
+            return null;
+        }
     }
 
     private Identity newIdentity() throws IOException, CertificateException {
@@ -78,7 +94,6 @@ public class FabricConfig {
 
     private Signer newSigner() throws IOException, InvalidKeyException {
         Path keyDir = Paths.get(keyPath);
-        // Keystore directory - find the private key file
         Path keyFile;
         try (Stream<Path> keyFiles = Files.list(keyDir)) {
             keyFile = keyFiles
@@ -86,7 +101,6 @@ public class FabricConfig {
                     .findFirst()
                     .orElseThrow(() -> new IOException("No private key found in: " + keyDir));
         }
-
         try (var keyReader = Files.newBufferedReader(keyFile)) {
             var privateKey = Identities.readPrivateKey(keyReader);
             return Signers.newPrivateKeySigner(privateKey);

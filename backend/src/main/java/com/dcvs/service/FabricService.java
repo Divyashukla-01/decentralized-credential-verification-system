@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hyperledger.fabric.client.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -16,31 +17,37 @@ public class FabricService {
 
     private static final Logger log = LoggerFactory.getLogger(FabricService.class);
 
-    private final Gateway gateway;
-    private final ObjectMapper objectMapper;
-    private final String channelName;
-    private final String chaincodeName;
+    @Autowired(required = false)
+    private Gateway gateway;
 
-    public FabricService(Gateway gateway,
-                         @Value("${fabric.channel-name}") String channelName,
-                         @Value("${fabric.chaincode-name}") String chaincodeName) {
-        this.gateway = gateway;
-        this.objectMapper = new ObjectMapper();
-        this.channelName = channelName;
-        this.chaincodeName = chaincodeName;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${fabric.channel-name:mychannel}")
+    private String channelName;
+
+    @Value("${fabric.chaincode-name:dcvs}")
+    private String chaincodeName;
+
+    private boolean isFabricAvailable() {
+        if (gateway == null) {
+            log.warn("Fabric Gateway is not available. Blockchain features disabled.");
+            return false;
+        }
+        return true;
     }
 
     private Contract getContract() {
         return gateway.getNetwork(channelName).getContract(chaincodeName);
     }
 
-    /**
-     * Issues a certificate — stores hash on blockchain
-     */
     public void issueCertificate(String certId, String rollNo, String hash,
                                   String studentName, String course,
                                   String issueDate, String issuerName,
                                   String timestamp) throws Exception {
+        if (!isFabricAvailable()) {
+            log.warn("Skipping blockchain issueCertificate — Fabric not connected.");
+            return;
+        }
         log.info("Issuing certificate: certId={}, rollNo={}", certId, rollNo);
         try {
             getContract().submitTransaction("IssueCertificate",
@@ -50,10 +57,10 @@ public class FabricService {
         }
     }
 
-    /**
-     * Fetches certificate by certId
-     */
     public CertificateResponse getCertificate(String certId) throws Exception {
+        if (!isFabricAvailable()) {
+            throw new RuntimeException("Blockchain not available. Cannot verify certificate.");
+        }
         try {
             byte[] result = getContract().evaluateTransaction("VerifyCertificate", certId);
             return objectMapper.readValue(new String(result), CertificateResponse.class);
@@ -62,10 +69,10 @@ public class FabricService {
         }
     }
 
-    /**
-     * Fetches certificate by roll number
-     */
     public CertificateResponse getCertificateByRollNo(String rollNo) throws Exception {
+        if (!isFabricAvailable()) {
+            throw new RuntimeException("Blockchain not available. Cannot fetch certificate.");
+        }
         try {
             byte[] result = getContract().evaluateTransaction("GetCertificateByRollNo", rollNo);
             return objectMapper.readValue(new String(result), CertificateResponse.class);
@@ -74,10 +81,11 @@ public class FabricService {
         }
     }
 
-    /**
-     * Gets all certificates
-     */
     public List<CertificateResponse> getAllCertificates() throws Exception {
+        if (!isFabricAvailable()) {
+            log.warn("Returning empty list — Fabric not connected.");
+            return List.of();
+        }
         try {
             byte[] result = getContract().evaluateTransaction("GetAllCertificates");
             String json = new String(result);
