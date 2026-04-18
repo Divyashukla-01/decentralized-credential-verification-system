@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
-import { Shield, PlusCircle, Search, LayoutGrid, Activity, LogOut, Sun, Moon } from 'lucide-react'
+import { Shield, Search, LayoutGrid, LogOut, Sun, Moon } from 'lucide-react'
 import { useAuth } from './AuthContext.jsx'
 import { useTheme } from './ThemeContext.jsx'
 import LoginPage from './LoginPage.jsx'
@@ -10,9 +10,7 @@ import AllCredentials from './pages/AllCredentials.jsx'
 import PublicVerifyPage from './pages/PublicVerifyPage.jsx'
 
 const ADMIN_NAV = [
-  { to: '/',      label: 'Dashboard', icon: LayoutGrid },
-  { to: '/issue', label: 'Issue',     icon: PlusCircle },
-  { to: '/all',   label: 'Records',   icon: Activity   },
+  { to: '/', label: 'Dashboard', icon: LayoutGrid },
 ]
 const STUDENT_NAV = [
   { to: '/verify', label: 'My Certificate', icon: Search },

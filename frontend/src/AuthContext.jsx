@@ -20,7 +20,8 @@ export function AuthProvider({ children }) {
   const loginAdmin = (email, password) => {
     if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       const u = { role: 'admin', name: 'Administrator', email }
-      setUser(u); localStorage.setItem('dcvs_user', JSON.stringify(u))
+      setUser(u)
+      // Admin session is intentionally NOT persisted - requires login each visit
       return { success: true }
     }
     return { success: false, message: 'Invalid admin credentials' }
