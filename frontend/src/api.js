@@ -39,3 +39,6 @@ export const verifyOtp = (email, otp) =>
   api.post('/auth/verify-otp', { email, otp })
 
 export default api
+
+export const getAllCertificatesFromDb = () =>
+  api.get('/certificate/all-db')

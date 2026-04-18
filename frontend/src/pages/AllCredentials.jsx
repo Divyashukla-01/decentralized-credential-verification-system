@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Activity, RefreshCw, ShieldCheck, Loader2, Search, AlertCircle, Download, Database } from 'lucide-react'
-import { getAllCertificates, downloadCertificate } from '../api.js'
+import { getAllCertificatesFromDb, downloadCertificate } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
 export default function AllCredentials() {
@@ -17,7 +17,7 @@ export default function AllCredentials() {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await getAllCertificates()
+      const res = await getAllCertificatesFromDb()
       setCerts(res.data?.data || [])
       setLastRefreshed(new Date())
     } catch (err) {

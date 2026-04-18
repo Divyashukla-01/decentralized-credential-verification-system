@@ -102,6 +102,18 @@ public class CertificateController {
         }
     }
 
+
+    /** GET /api/certificate/all-db — list all from PostgreSQL */
+    @GetMapping("/all-db")
+    public ResponseEntity<ApiResponse<?>> getAllFromDb() {
+        try {
+            return ResponseEntity.ok(ApiResponse.success("OK", certificateService.getAllFromDb()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed: " + e.getMessage()));
+        }
+    }
+
     /** GET /api/certificate/health */
     @GetMapping("/health")
     public ResponseEntity<ApiResponse<String>> health() {
