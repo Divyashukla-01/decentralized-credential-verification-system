@@ -214,9 +214,13 @@ public class CertificateService {
     }
 
     private VerificationResult buildResultFromDb(CertificateMetadata m) {
-        String computed = HashUtil.generateHash(m.getStudentName(), m.getRollNo(),
-                m.getCourse(), m.getIssueDate(), m.getCertId());
-        boolean valid = computed.equals(m.getHash());
+        String studentName = m.getStudentName() != null ? m.getStudentName() : "";
+        String rollNo = m.getRollNo() != null ? m.getRollNo() : "";
+        String course = m.getCourse() != null ? m.getCourse() : "";
+        String issueDate = m.getIssueDate() != null ? m.getIssueDate() : "";
+        String certId = m.getCertId() != null ? m.getCertId() : "";
+        String computed = HashUtil.generateHash(studentName, rollNo, course, issueDate, certId);
+        boolean valid = m.getHash() != null && computed.equals(m.getHash());
         return VerificationResult.builder()
                 .valid(valid).status(valid ? "VALID" : "INVALID")
                 .message(valid ? "✅ Certificate verified (database — blockchain offline)"
