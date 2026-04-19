@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldCheck, PlusCircle, Activity, ArrowRight, TrendingUp, Clock, Database } from 'lucide-react'
-import { getAllCertificates, healthCheck } from '../api.js'
+import { getAllCertificatesFromDb, healthCheck } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
 export default function Dashboard() {
@@ -18,7 +18,7 @@ export default function Dashboard() {
       .then(() => setBackendStatus('online'))
       .catch(() => setBackendStatus('offline'))
 
-    getAllCertificates()
+    getAllCertificatesFromDb()
       .then(res => {
         const certs = res.data?.data || []
         const last7 = certs.filter(c => {

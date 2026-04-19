@@ -127,28 +127,38 @@ public class CertificateService {
     }
 
     public VerificationResult verify(String certId) {
+        // Try DB first (Fabric offline in cloud deployment)
+        var dbResult = metadataRepo.findById(certId);
+        if (dbResult.isPresent()) {
+            log.info("Found certificate certId={} in DB", certId);
+            return buildResultFromDb(dbResult.get());
+        }
+        // Try blockchain as fallback
         try {
             return buildResult(fabricService.getCertificate(certId));
         } catch (Exception e) {
-            log.warn("Blockchain unavailable for certId={}, trying DB", certId);
-            return metadataRepo.findById(certId)
-                    .map(this::buildResultFromDb)
-                    .orElse(VerificationResult.builder()
-                            .valid(false).status("NOT_FOUND").certId(certId)
-                            .message("Certificate not found").build());
+            log.warn("Certificate not found for certId={} in DB or blockchain", certId);
+            return VerificationResult.builder()
+                    .valid(false).status("NOT_FOUND").certId(certId)
+                    .message("Certificate not found").build();
         }
     }
 
     public VerificationResult verifyByRollNo(String rollNo) {
+        // Try DB first (Fabric offline in cloud deployment)
+        var dbResult = metadataRepo.findByRollNo(rollNo);
+        if (dbResult.isPresent()) {
+            log.info("Found certificate for rollNo={} in DB", rollNo);
+            return buildResultFromDb(dbResult.get());
+        }
+        // Try blockchain as fallback
         try {
             return buildResult(fabricService.getCertificateByRollNo(rollNo));
         } catch (Exception e) {
-            log.warn("Blockchain unavailable for rollNo={}, trying DB", rollNo);
-            return metadataRepo.findByRollNo(rollNo)
-                    .map(this::buildResultFromDb)
-                    .orElse(VerificationResult.builder()
-                            .valid(false).status("NOT_FOUND").rollNo(rollNo)
-                            .message("No certificate found for roll number: " + rollNo).build());
+            log.warn("Certificate not found for rollNo={} in DB or blockchain", rollNo);
+            return VerificationResult.builder()
+                    .valid(false).status("NOT_FOUND").rollNo(rollNo)
+                    .message("No certificate found for roll number: " + rollNo).build();
         }
     }
 
