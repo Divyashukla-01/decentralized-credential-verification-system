@@ -130,17 +130,17 @@ function AdminSearchView() {
     setLoading(true); setResult(null); setShowDetails(false)
     try {
       const endpoint = searchType === 'rollNo'
-        ? `/api/certificate/verify/roll/${searchId.trim()}`
-        : `/api/certificate/verify/${searchId.trim()}`
+        ? `/api/public/verify/roll/${searchId.trim()}`
+        : `/api/public/verify/${searchId.trim()}`
       const res = await axios.get(endpoint)
       setResult(res.data?.data)
-    } catch {
+    } catch (err) {
       try {
-        const res2 = await axios.get(`/api/public/verify/${searchId.trim()}`)
-        setResult(res2.data?.data)
-      } catch (err) {
         setResult({ status:'NOT_FOUND', valid:false,
           message: err.response?.data?.message || 'Not found on blockchain or database' })
+      } catch {
+        setResult({ status:'NOT_FOUND', valid:false,
+          message: 'Not found on blockchain or database' })
       }
     } finally { setLoading(false) }
   }
