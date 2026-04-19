@@ -35,7 +35,14 @@ public class PublicController {
     @GetMapping("/verify/roll/{rollNo}")
     public ResponseEntity<ApiResponse<VerificationResult>> publicVerifyByRoll(
             @PathVariable String rollNo) {
-        VerificationResult result = certificateService.verifyByRollNo(rollNo);
-        return ResponseEntity.ok(ApiResponse.success("Verification complete", result));
+        try {
+            VerificationResult result = certificateService.verifyByRollNo(rollNo);
+            return ResponseEntity.ok(ApiResponse.success("Verification complete", result));
+        } catch (Exception e) {
+            VerificationResult notFound = VerificationResult.builder()
+                    .valid(false).status("NOT_FOUND").rollNo(rollNo)
+                    .message("No certificate found for roll number: " + rollNo).build();
+            return ResponseEntity.ok(ApiResponse.success("Verification complete", notFound));
+        }
     }
 }
