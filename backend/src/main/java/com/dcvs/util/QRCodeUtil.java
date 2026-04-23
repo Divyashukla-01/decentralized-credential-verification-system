@@ -16,19 +16,15 @@ import java.util.Map;
 public class QRCodeUtil {
 
     /**
-     * QR contains the Vercel public verification URL.
-     * This always works — Vercel is always live (free hosting).
-     * URL format: https://your-app.vercel.app/public/verify?certId=CERT-001
-     *
-     * When scanned:
-     * - If network up → shows full blockchain verification
-     * - If network down → shows cached certificate data from localStorage
+     * QR always points to PUBLIC Vercel URL — works from any scanner anywhere.
+     * URL: https://your-app.vercel.app/public/verify?certId=CERT-001
+     * Vercel proxies /api/* to Render backend automatically.
      */
     public static byte[] generateQRCode(String certId, String vercelBaseUrl)
             throws WriterException, IOException {
 
-        // Build the public verification URL
-        String url = vercelBaseUrl + "/public/verify?certId=" + certId;
+        // Always use the public Vercel URL for QR
+        String url = vercelBaseUrl.trim() + "/public/verify?certId=" + certId.trim();
 
         Map<EncodeHintType, Object> hints = new HashMap<>();
         hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H);
@@ -36,7 +32,7 @@ public class QRCodeUtil {
         hints.put(EncodeHintType.CHARACTER_SET, "UTF-8");
 
         QRCodeWriter writer = new QRCodeWriter();
-        BitMatrix matrix = writer.encode(url, BarcodeFormat.QR_CODE, 280, 280, hints);
+        BitMatrix matrix = writer.encode(url, BarcodeFormat.QR_CODE, 300, 300, hints);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         MatrixToImageWriter.writeToStream(matrix, "PNG", out);

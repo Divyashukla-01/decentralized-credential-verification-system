@@ -12,8 +12,11 @@ import java.util.Optional;
 @Repository
 public interface CertificateMetadataRepository extends JpaRepository<CertificateMetadata, String> {
 
-    @Query("SELECT c FROM CertificateMetadata c WHERE TRIM(c.rollNo) = TRIM(:rollNo)")
+    @Query(value = "SELECT * FROM certificate_metadata WHERE TRIM(roll_no) = TRIM(:rollNo) ORDER BY issued_at DESC LIMIT 1", nativeQuery = true)
     Optional<CertificateMetadata> findByRollNo(@Param("rollNo") String rollNo);
+
+    @Query(value = "SELECT * FROM certificate_metadata WHERE TRIM(roll_no) = TRIM(:rollNo) ORDER BY issued_at DESC", nativeQuery = true)
+    List<CertificateMetadata> findAllByRollNo(@Param("rollNo") String rollNo);
 
     List<CertificateMetadata> findAllByOrderByIssuedAtDesc();
 }
