@@ -8,173 +8,134 @@ import (
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
-// SmartContract provides functions for managing credentials
 type SmartContract struct {
 	contractapi.Contract
 }
 
-// Credential describes a student credential stored on-chain
-type Credential struct {
-	ID        string `json:"id"`
-	StudentID string `json:"studentId"`
-	Course    string `json:"course"`
-	Grade     string `json:"grade"`
-	IssuedAt  string `json:"issuedAt"`
-	IssuerOrg string `json:"issuerOrg"`
+type Certificate struct {
+	CertId      string `json:"certId"`
+	RollNo      string `json:"rollNo"`
+	Hash        string `json:"hash"`
+	StudentName string `json:"studentName"`
+	Course      string `json:"course"`
+	IssueDate   string `json:"issueDate"`
+	IssuerName  string `json:"issuerName"`
+	IssuerOrg   string `json:"issuerOrg"`
+	Timestamp   string `json:"timestamp"`
+	TxId        string `json:"txId"`
 }
 
-// CreateCredential issues a new credential to the ledger
-func (s *SmartContract) CreateCredential(ctx contractapi.TransactionContextInterface, id string, studentId string, course string, grade string, issuedAt string) error {
-	exists, err := s.CredentialExists(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to check credential existence: %v", err)
-	}
-	if exists {
-		return fmt.Errorf("credential with ID %s already exists", id)
+func (s *SmartContract) IssueCertificate(ctx contractapi.TransactionContextInterface,
+	certId string, rollNo string, hash string, studentName string,
+	course string, issueDate string, issuerName string, timestamp string) error {
+
+	existing, _ := ctx.GetStub().GetState(certId)
+	if existing != nil {
+		return fmt.Errorf("certificate %s already exists", certId)
 	}
 
-	// Get the MSP ID of the submitting org
 	mspID, err := ctx.GetClientIdentity().GetMSPID()
 	if err != nil {
-		mspID = "UnknownOrg"
+		mspID = "Org1MSP"
 	}
 
-	credential := Credential{
-		ID:        id,
-		StudentID: studentId,
-		Course:    course,
-		Grade:     grade,
-		IssuedAt:  issuedAt,
-		IssuerOrg: mspID,
+	txId := ctx.GetStub().GetTxID()
+
+	cert := Certificate{
+		CertId:      certId,
+		RollNo:      rollNo,
+		Hash:        hash,
+		StudentName: studentName,
+		Course:      course,
+		IssueDate:   issueDate,
+		IssuerName:  issuerName,
+		IssuerOrg:   mspID,
+		Timestamp:   timestamp,
+		TxId:        txId,
 	}
 
-	credentialJSON, err := json.Marshal(credential)
+	certJSON, err := json.Marshal(cert)
 	if err != nil {
-		return fmt.Errorf("failed to marshal credential: %v", err)
+		return fmt.Errorf("failed to marshal: %v", err)
 	}
 
-	err = ctx.GetStub().PutState(id, credentialJSON)
-	if err != nil {
-		return fmt.Errorf("failed to put state: %v", err)
-	}
-
-	// Emit an event
-	_ = ctx.GetStub().SetEvent("CredentialCreated", credentialJSON)
-
-	return nil
+	return ctx.GetStub().PutState(certId, certJSON)
 }
 
-// ReadCredential retrieves a credential from the ledger by ID
-func (s *SmartContract) ReadCredential(ctx contractapi.TransactionContextInterface, id string) (*Credential, error) {
-	credentialJSON, err := ctx.GetStub().GetState(id)
+func (s *SmartContract) VerifyCertificate(ctx contractapi.TransactionContextInterface, certId string) (*Certificate, error) {
+	certJSON, err := ctx.GetStub().GetState(certId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read from world state: %v", err)
+		return nil, fmt.Errorf("failed to read: %v", err)
 	}
-	if credentialJSON == nil {
-		return nil, fmt.Errorf("credential with ID %s does not exist", id)
+	if certJSON == nil {
+		return nil, fmt.Errorf("certificate %s does not exist", certId)
 	}
 
-	var credential Credential
-	err = json.Unmarshal(credentialJSON, &credential)
+	var cert Certificate
+	err = json.Unmarshal(certJSON, &cert)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal credential: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal: %v", err)
 	}
-
-	return &credential, nil
+	return &cert, nil
 }
 
-// CredentialExists checks if a credential with the given ID exists
-func (s *SmartContract) CredentialExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
-	credentialJSON, err := ctx.GetStub().GetState(id)
-	if err != nil {
-		return false, fmt.Errorf("failed to read from world state: %v", err)
-	}
-	return credentialJSON != nil, nil
-}
-
-// GetAllCredentials returns all credentials stored in the ledger using CouchDB rich query
-func (s *SmartContract) GetAllCredentials(ctx contractapi.TransactionContextInterface) ([]*Credential, error) {
-	// Using CouchDB rich query to get all credentials
-	queryString := `{"selector":{"id":{"$gt":null}}}`
-
-	resultsIterator, err := ctx.GetStub().GetQueryResult(queryString)
-	if err != nil {
-		// Fallback: use GetStateByRange for LevelDB
-		return s.getAllByRange(ctx)
-	}
-	defer resultsIterator.Close()
-
-	var credentials []*Credential
-	for resultsIterator.HasNext() {
-		queryResult, err := resultsIterator.Next()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get next result: %v", err)
-		}
-
-		var credential Credential
-		err = json.Unmarshal(queryResult.Value, &credential)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal credential: %v", err)
-		}
-		credentials = append(credentials, &credential)
-	}
-
-	if credentials == nil {
-		credentials = []*Credential{}
-	}
-
-	return credentials, nil
-}
-
-// getAllByRange is a fallback for non-CouchDB state databases
-func (s *SmartContract) getAllByRange(ctx contractapi.TransactionContextInterface) ([]*Credential, error) {
+func (s *SmartContract) GetCertificateByRollNo(ctx contractapi.TransactionContextInterface, rollNo string) (*Certificate, error) {
 	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get state by range: %v", err)
+		return nil, fmt.Errorf("failed to get state: %v", err)
 	}
 	defer resultsIterator.Close()
 
-	var credentials []*Credential
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get next result: %v", err)
-		}
-
-		var credential Credential
-		err = json.Unmarshal(queryResponse.Value, &credential)
-		if err != nil {
-			// Skip malformed entries
 			continue
 		}
-		credentials = append(credentials, &credential)
+		var cert Certificate
+		err = json.Unmarshal(queryResponse.Value, &cert)
+		if err != nil {
+			continue
+		}
+		if cert.RollNo == rollNo {
+			return &cert, nil
+		}
 	}
-
-	if credentials == nil {
-		credentials = []*Credential{}
-	}
-
-	return credentials, nil
+	return nil, fmt.Errorf("no certificate found for roll number: %s", rollNo)
 }
 
-// DeleteCredential removes a credential from the ledger (admin only in production)
-func (s *SmartContract) DeleteCredential(ctx contractapi.TransactionContextInterface, id string) error {
-	exists, err := s.CredentialExists(ctx, id)
+func (s *SmartContract) GetAllCertificates(ctx contractapi.TransactionContextInterface) ([]*Certificate, error) {
+	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to get state: %v", err)
 	}
-	if !exists {
-		return fmt.Errorf("credential with ID %s does not exist", id)
+	defer resultsIterator.Close()
+
+	var certs []*Certificate
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			continue
+		}
+		var cert Certificate
+		err = json.Unmarshal(queryResponse.Value, &cert)
+		if err != nil {
+			continue
+		}
+		certs = append(certs, &cert)
 	}
-	return ctx.GetStub().DelState(id)
+
+	if certs == nil {
+		certs = []*Certificate{}
+	}
+	return certs, nil
 }
 
 func main() {
 	chaincode, err := contractapi.NewChaincode(&SmartContract{})
 	if err != nil {
-		log.Panicf("Error creating credential chaincode: %v", err)
+		log.Panicf("Error creating chaincode: %v", err)
 	}
 	if err := chaincode.Start(); err != nil {
-		log.Panicf("Error starting credential chaincode: %v", err)
+		log.Panicf("Error starting chaincode: %v", err)
 	}
 }
