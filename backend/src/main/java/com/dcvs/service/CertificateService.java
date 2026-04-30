@@ -31,7 +31,7 @@ public class CertificateService {
     @Value("${app.issuer-name:Goel Institute of Technology and Management}")
     private String defaultIssuerName;
 
-    @Value("${app.vercel-url:https://decentralized-credential-verificati.vercel.app}")
+    @Value("${app.vercel-url:https://tracing-librarian-unfixed.ngrok-free.dev}")
     private String vercelUrl;
 
     public CertificateService(FabricService fabricService,

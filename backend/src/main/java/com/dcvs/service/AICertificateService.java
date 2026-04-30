@@ -69,7 +69,7 @@ public class AICertificateService {
         ));
 
         var request = HttpRequest.newBuilder()
-            .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + geminiApiKey))
+            .uri(URI.create("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=" + geminiApiKey))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(requestBody))
             .build();
@@ -123,10 +123,29 @@ public class AICertificateService {
                 "bold", "double-gold", "CERTIFICATE OF MERIT",
                 "Champion Bold", "celebratory"
             );
+            case "DEGREE_COMPLETION", "DEGREE" -> new CertificateDesign(
+                "#1A237E", "#283593", "#C59B32", "#FDFCF8",
+                "elegant", "double-gold", "DEGREE COMPLETION CERTIFICATE",
+                "Academic Excellence", "academic"
+            );
+            case "ACHIEVEMENT" -> new CertificateDesign(
+                "#4A148C", "#6A1B9A", "#FFD700", "#F9F5FF",
+                "elegant", "ornate", "CERTIFICATE OF ACHIEVEMENT",
+                "Royal Achievement", "celebratory"
+            );
+            case "APPRECIATION" -> new CertificateDesign(
+                "#E65100", "#EF6C00", "#FFF9C4", "#FFFBF5",
+                "classic", "single-navy", "CERTIFICATE OF APPRECIATION",
+                "Warm Professional", "professional"
+            );
+            case "PARTICIPATION" -> new CertificateDesign(
+                "#00695C", "#00796B", "#B2EBF2", "#F0FDFA",
+                "modern", "minimal", "CERTIFICATE OF PARTICIPATION",
+                "Fresh Modern", "academic"
+            );
             default -> defaultProfessional();
         };
     }
-
     private CertificateDesign defaultProfessional() {
         return new CertificateDesign(
             "#08143A", "#C59B32", "#FFFFFF", "#FDFCF8",

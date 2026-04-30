@@ -19,3 +19,4 @@ blockchain/fabric-samples/test-network/docker/
 
 # Optional
 *.tar.gz
+backend/src/main/resources/application.properties
